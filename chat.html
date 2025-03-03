@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Чат</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="chat-container">
+            <div class="sidebar">
+                <div class="chat-list">
+                    <div class="chat-list-header">
+                        <h2>Мои чаты</h2>
+                    </div>
+                    <div id="chatsList">
+                        <!-- Чаты будут добавлены здесь -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-main">
+                <div id="chatHeader" class="chat-header">
+                    <h2 id="chatName"></h2>
+                </div>
+
+                <div id="messagesContainer" class="messages-container"></div>
+
+                <div class="message-input-container">
+                    <form id="messageForm" class="message-form">
+                        <input type="text" id="messageInput" placeholder="Введите сообщение...">
+                        <button type="submit" class="send-button">
+                            <span>Отправить</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast" style="display: none;"></div>
+
+    <script>
+        let currentChatId = {{ (first_chat_id|tojson|safe) if first_chat_id else 'null' }};
+        if (currentChatId === null) {
+            showToast('У вас нет активных чатов. Создайте новый чат или присоединитесь к существующему.');
+        }
+
+        // Ensure the toast is displayed correctly
+        function showToast(message, duration = 3000) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.style.display = 'block';
+            
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, duration);
+        }
+
+        // Load chats when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            loadChats();
+            if (currentChatId) {
+                showChat(currentChatId);
+            }
+        });
+
+        function showChat(chatId) {
+            currentChatId = chatId;
+            const messagesContainer = document.getElementById('messagesContainer');
+            const chatHeader = document.getElementById('chatHeader');
+            
+            // Показываем индикатор загрузки
+            messagesContainer.innerHTML = '<div class="loading-messages">Загрузка сообщений...</div>';
+            
+            // Загружаем сообщения
+            fetch(`/api/chats/${chatId}/messages`)
+                .then(response => {
+                    if (!response.ok) {
+                        if (response.status === 403) {
+                            throw new Error('У вас нет доступа к этому чату');
+                        }
+                        throw new Error('Ошибка при загрузке сообщений');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    messagesContainer.innerHTML = '';
+                    
+                    // Обновляем заголовок чата
+                    if (data.chat_name) {
+                        document.getElementById('chatName').textContent = data.chat_name;
+                    }
+                    
+                    if (data.messages && data.messages.length > 0) {
+                        data.messages.forEach(message => {
+                            const messageElement = document.createElement('div');
+                            messageElement.className = `message ${message.is_own ? 'sent' : 'received'}`;
+                            messageElement.innerHTML = `
+                                <div class="message-content">${message.content}</div>
+                                <div class="message-info">
+                                    <span class="username">${message.username}</span>
+                                    <span class="time">${new Date(message.timestamp).toLocaleTimeString()}</span>
+                                </div>
+                            `;
+                            messagesContainer.appendChild(messageElement);
+                        });
+                    } else {
+                        const emptyMessage = document.createElement('div');
+                        emptyMessage.className = 'no-messages';
+                        emptyMessage.textContent = 'Нет сообщений. Начните общение!';
+                        messagesContainer.appendChild(emptyMessage);
+                    }
+                    
+                    // Прокручиваем к последнему сообщению
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                    showToast(error.message || 'Ошибка при загрузке сообщений');
+                    messagesContainer.innerHTML = '<div class="error-message">Не удалось загрузить сообщения</div>';
+                });
+        }
+
+        // Обработка отправки сообщения
+        document.getElementById('messageForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (!currentChatId) {
+                showToast('Выберите чат для отправки сообщения');
+                return;
+            }
+
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            const button = this.querySelector('button');
+            const buttonText = button.querySelector('span');
+            const originalText = buttonText.textContent;
+            buttonText.textContent = 'Отправка...';
+            button.disabled = true;
+
+            fetch(`/api/chats/${currentChatId}/messages`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': '{{ csrf_token() if csrf_token else "" }}'
+                },
+                body: JSON.stringify({ content: message })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Ошибка при отправке сообщения');
+                }
+                return response.json();
+            })
+            .then(data => {
+                input.value = '';
+                showChat(currentChatId); // Обновляем сообщения
+            })
+            .catch(error => {
+                console.error('Ошибка при отправке сообщения:', error);
+                showToast('Ошибка при отправке сообщения');
+            })
+            .finally(() => {
+                buttonText.textContent = originalText;
+                button.disabled = false;
+            });
+        });
+
+        function loadChats() {
+            const chatsListDiv = document.getElementById('chatsList');
+            chatsListDiv.innerHTML = '<div class="loading-chats">Загрузка чатов...</div>';
+            
+            fetch('/api/chats')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Ошибка при загрузке чатов');
+                    }
+                    return response.json();
+                })
+                .then(chats => {
+                    chatsListDiv.innerHTML = '';
+                    
+                    if (chats.length === 0) {
+                        chatsListDiv.innerHTML = '<div class="no-chats">У вас пока нет чатов</div>';
+                        return;
+                    }
+                    
+                    chats.forEach(chat => {
+                        const chatDiv = document.createElement('div');
+                        chatDiv.className = 'chat-item';
+                        chatDiv.dataset.chatId = chat.id;
+                        
+                        chatDiv.innerHTML = `
+                            <div class="chat-info">
+                                <h3>${chat.name}</h3>
+                                <p class="chat-members">${chat.member_count} участник(ов)</p>
+                            </div>
+                        `;
+                        
+                        chatDiv.addEventListener('click', () => {
+                            document.querySelectorAll('.chat-item').forEach(item => {
+                                item.classList.remove('active');
+                            });
+                            chatDiv.classList.add('active');
+                            showChat(chat.id);
+                        });
+                        
+                        chatsListDiv.appendChild(chatDiv);
+                    });
+                    
+                    // Если есть текущий чат, подсветим его
+                    if (currentChatId) {
+                        const currentChat = document.querySelector(`[data-chat-id="${currentChatId}"]`);
+                        if (currentChat) {
+                            currentChat.classList.add('active');
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка при загрузке чатов:', error);
+                    chatsListDiv.innerHTML = '<div class="error-message">Не удалось загрузить чаты</div>';
+                });
+        }
+    </script>
+</body>
+</html>
