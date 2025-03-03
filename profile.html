@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Профиль - Чат</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="profile-container">
+            <h1>Профиль</h1>
+            
+            <div class="profile-content">
+                <div class="profile-avatar">
+                    <div class="avatar-preview">
+                        <img src="{{ avatar_url or url_for('static', filename='default-avatar.svg') }}" alt="Аватар" id="avatarPreview">
+                        <div class="avatar-overlay">
+                            <span>Изменить</span>
+                        </div>
+                    </div>
+                    <input type="file" id="avatarInput" name="avatar" accept="image/*" style="display: none;">
+                </div>
+
+                <div class="profile-info">
+                    <p class="registration-date">Дата регистрации: {{ registration_date }}</p>
+                </div>
+
+                <form id="profileForm" class="profile-form">
+                    <div class="form-group">
+                        <input type="text" name="username" value="{{ username }}" required>
+                        <label>Имя пользователя</label>
+                    </div>
+                    <div class="form-group">
+                        <input type="text" name="status" value="{{ status or '' }}" placeholder="Установить статус">
+                        <label>Статус</label>
+                    </div>
+                    <div class="form-group">
+                        <input type="password" name="new_password" placeholder="Оставьте пустым, чтобы не менять">
+                        <label>Новый пароль</label>
+                    </div>
+                    <button type="submit" class="save-button">
+                        <span class="button-text">Сохранить</span>
+                        <div class="loading" style="display: none;">
+                            <div class="spinner"></div>
+                        </div>
+                    </button>
+                </form>
+            </div>
+
+            <div class="profile-actions">
+                <a href="{{ url_for('chat.chat_select') }}" class="back-button">Вернуться к чатам</a>
+                <a href="{{ url_for('auth.logout') }}" class="logout-button">Выйти</a>
+            </div>
+
+            <div id="toast" class="toast" style="display: none;"></div>
+
+            <script>
+                $(document).ready(function() {
+                    // Show toast notification
+                    function showToast(message, duration = 3000) {
+                        const toast = $('#toast');
+                        toast.text(message).fadeIn();
+                        setTimeout(() => toast.fadeOut(), duration);
+                    }
+
+                    // Handle avatar click
+                    $('.avatar-preview').click(function() {
+                        $('#avatarInput').click();
+                    });
+
+                    // Handle avatar upload
+                    $('#avatarInput').change(function() {
+                        const file = this.files[0];
+                        if (file) {
+                            const formData = new FormData();
+                            formData.append('avatar', file);
+
+                            const button = $('.save-button');
+                            const buttonText = button.find('.button-text');
+                            const loading = button.find('.loading');
+
+                            // Show loading state
+                            buttonText.hide();
+                            loading.show();
+                            button.prop('disabled', true);
+
+                            $.ajax({
+                                url: "{{ url_for('user.upload_avatar') }}",
+                                method: 'POST',
+                                data: formData,
+                                processData: false,
+                                contentType: false,
+                                success: function(response) {
+                                    $('#avatarPreview').attr('src', response.avatar_url + '?t=' + new Date().getTime());
+                                    showToast('Аватар успешно обновлен');
+                                    buttonText.show();
+                                    loading.hide();
+                                    button.prop('disabled', false);
+                                },
+                                error: function(xhr) {
+                                    const error = xhr.responseJSON?.error || 'Ошибка при загрузке аватара';
+                                    showToast(error);
+                                    buttonText.show();
+                                    loading.hide();
+                                    button.prop('disabled', false);
+                                }
+                            });
+                        }
+                    });
+
+                    // Handle profile form submission
+                    $('#profileForm').submit(function(e) {
+                        e.preventDefault();
+                        
+                        const button = $(this).find('button');
+                        const buttonText = button.find('.button-text');
+                        const loading = button.find('.loading');
+
+                        buttonText.hide();
+                        loading.show();
+                        button.prop('disabled', true);
+
+                        const formData = {
+                            username: $(this).find('input[name="username"]').val(),
+                            status: $(this).find('input[name="status"]').val(),
+                            new_password: $(this).find('input[name="new_password"]').val()
+                        };
+
+                        $.ajax({
+                            url: "{{ url_for('user.update_profile') }}",
+                            method: 'POST',
+                            contentType: 'application/json',
+                            data: JSON.stringify(formData),
+                            success: function(response) {
+                                showToast('Профиль успешно обновлен');
+                                setTimeout(() => {
+                                    buttonText.show();
+                                    loading.hide();
+                                    button.prop('disabled', false);
+                                }, 500);
+                            },
+                            error: function(xhr) {
+                                const error = xhr.responseJSON?.error || 'Ошибка при обновлении профиля';
+                                showToast(error);
+                                buttonText.show();
+                                loading.hide();
+                                button.prop('disabled', false);
+                            }
+                        });
+                    });
+
+                    // Add input animation
+                    $('.form-group input').on('focus blur', function(e) {
+                        $(this).parent().toggleClass('focused', e.type === 'focus');
+                    });
+                });
+            </script>
+        </div>
+    </div>
+</body>
+</html>

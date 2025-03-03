@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Выбор чата</title>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: white;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .user-info {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .user-info a {
+            color: white;
+            text-decoration: none;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+
+        .user-info a:hover {
+            opacity: 1;
+        }
+
+        .logout-button {
+            padding: 8px 16px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .logout-button:hover {
+            opacity: 0.9;
+        }
+
+        .container {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .card {
+            background-color: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+            width: 300px;
+        }
+
+        .card h2 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #28a745;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            opacity: 0.8;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            border: none;
+            border-radius: 4px;
+            background-color: #3a3a3a;
+            color: white;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            background-color: #404040;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            background-color: #28a745;
+            color: white;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .error-message {
+            color: #dc3545;
+            margin-top: 10px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .my-chats {
+            margin-top: 40px;
+        }
+
+        .chat-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .chat-item {
+            background-color: #2a2a2a;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-item .chat-info {
+            flex-grow: 1;
+        }
+
+        .chat-item .chat-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .chat-item .chat-code {
+            font-size: 12px;
+            opacity: 0.7;
+        }
+
+        .chat-item .actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-item button {
+            width: auto;
+            padding: 5px 10px;
+            font-size: 14px;
+        }
+
+        .chat-item button.delete {
+            background-color: #dc3545;
+        }
+
+        .copy-button {
+            background-color: #0d6efd;
+            padding: 3px 8px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Выбор чата</h1>
+        <div class="user-info">
+            <span id="username"></span>
+            <a href="/user/profile">Профиль</a>
+            <a href="/auth/logout">Выйти</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h2>Создать чат</h2>
+            <div class="form-group">
+                <label for="create-name">Название чата</label>
+                <input type="text" id="create-name" placeholder="Введите название">
+            </div>
+            <div class="form-group">
+                <label for="create-password">Пароль (необязательно)</label>
+                <input type="password" id="create-password" placeholder="Введите пароль">
+            </div>
+            <button onclick="createChat()">Создать чат</button>
+            <div id="create-error" class="error-message"></div>
+        </div>
+
+        <div class="card">
+            <h2>Войти в чат</h2>
+            <div class="form-group">
+                <label for="join-code">Код приглашения</label>
+                <input type="text" id="join-code" placeholder="Введите код">
+            </div>
+            <div class="form-group">
+                <label for="join-password">Пароль</label>
+                <input type="password" id="join-password" placeholder="Введите пароль">
+            </div>
+            <button onclick="joinChat()">Войти в чат</button>
+            <div id="join-error" class="error-message"></div>
+        </div>
+    </div>
+
+    <div class="my-chats">
+        <h2>Мои чаты</h2>
+        <div id="chat-list" class="chat-list">
+            <!-- Чаты будут добавлены здесь -->
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('username').textContent = '{{ username }}';
+
+        function showError(elementId, message) {
+            const error = document.getElementById(elementId);
+            error.textContent = message;
+            error.style.display = 'block';
+        }
+
+        function createChat() {
+            const name = document.getElementById('create-name').value;
+            const password = document.getElementById('create-password').value;
+
+            if (!name) {
+                showError('create-error', 'Введите название чата');
+                return;
+            }
+
+            fetch('/chat/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name, password })
+            }).then(res => res.json())
+              .then(data => {
+                  if (data.error) {
+                      showError('create-error', data.error);
+                  } else {
+                      window.location.reload();
+                  }
+              })
+              .catch(() => {
+                  showError('create-error', 'Ошибка при создании чата');
+              });
+        }
+
+        function joinChat() {
+            const code = document.getElementById('join-code').value;
+            const password = document.getElementById('join-password').value;
+
+            if (!code) {
+                showError('join-error', 'Введите код приглашения');
+                return;
+            }
+
+            fetch('/chat/join', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ code, password })
+            }).then(res => res.json())
+              .then(data => {
+                  if (data.error) {
+                      showError('join-error', data.error);
+                  } else {
+                      window.location.href = `/chat/${data.chat_id}`;
+                  }
+              })
+              .catch(() => {
+                  showError('join-error', 'Ошибка при входе в чат');
+              });
+        }
+
+        function copyInviteCode(code) {
+            navigator.clipboard.writeText(code).then(() => {
+                alert('Код скопирован!');
+            });
+        }
+
+        function deleteChat(chatId) {
+            if (!confirm('Вы уверены, что хотите удалить этот чат?')) {
+                return;
+            }
+
+            fetch(`/chat/${chatId}`, {
+                method: 'DELETE'
+            }).then(res => res.json())
+              .then(data => {
+                  if (data.error) {
+                      alert(data.error);
+                  } else {
+                      window.location.reload();
+                  }
+              })
+              .catch(() => {
+                  alert('Ошибка при удалении чата');
+              });
+        }
+
+        function loadMyChats() {
+            fetch('/chat/my')
+                .then(res => res.json())
+                .then(chats => {
+                    const chatList = document.getElementById('chat-list');
+                    chatList.innerHTML = '';
+
+                    chats.forEach(chat => {
+                        const div = document.createElement('div');
+                        div.className = 'chat-item';
+                        div.innerHTML = `
+                            <div class="chat-info">
+                                <div class="chat-name">${chat.name}</div>
+                                <div class="chat-code">
+                                    Код: ${chat.invite_code}
+                                    <button class="copy-button" onclick="copyInviteCode('${chat.invite_code}')">
+                                        Копировать
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="actions">
+                                <button onclick="window.location.href='/chat/${chat.id}'">Открыть</button>
+                                <button class="delete" onclick="deleteChat(${chat.id})">Удалить</button>
+                            </div>
+                        `;
+                        chatList.appendChild(div);
+                    });
+                });
+        }
+
+        function logout() {
+            fetch('/logout', {
+                method: 'POST'
+            }).then(() => {
+                window.location.href = '/login';
+            });
+        }
+
+        // Load chats when page loads
+        loadMyChats();
+    </script>
+</body>
+</html>

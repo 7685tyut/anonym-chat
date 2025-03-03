@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <div class="container auth-container">
+        <div class="auth-box">
+            <h1>Вход в чат</h1>
+            <form id="loginForm" class="auth-form">
+                <div class="form-group">
+                    <input type="text" name="username" placeholder="Имя пользователя" required>
+                    <span class="focus-border"></span>
+                </div>
+                <div class="form-group">
+                    <input type="password" name="password" placeholder="Пароль" required>
+                    <span class="focus-border"></span>
+                </div>
+                <button type="submit" class="auth-button">
+                    <span class="button-text">Войти</span>
+                    <div class="loading-spinner" style="display: none;"></div>
+                </button>
+            </form>
+            <div class="auth-links">
+                <p>Нет аккаунта? <a href="{{ url_for('auth.register_page') }}" class="gradient-link">Зарегистрироваться</a></p>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast" style="display: none;"></div>
+
+    <script>
+        $(document).ready(function() {
+            function showToast(message, isError = false) {
+                const toast = $('#toast');
+                toast.text(message)
+                    .removeClass('success error')
+                    .addClass(isError ? 'error' : 'success')
+                    .fadeIn();
+                setTimeout(() => toast.fadeOut(), 3000);
+            }
+
+            $('#loginForm').submit(function(e) {
+                e.preventDefault();
+                console.log("Login form submitted");
+
+                const button = $(this).find('button');
+                const buttonText = button.find('.button-text');
+                const loadingSpinner = button.find('.loading-spinner');
+
+                buttonText.hide();
+                loadingSpinner.show();
+                button.prop('disabled', true);
+
+                const username = $(this).find('input[name="username"]').val().trim();
+                const password = $(this).find('input[name="password"]').val();
+                
+                console.log("Sending login data:", { username: username });
+
+                $.ajax({
+                    url: '/auth/login',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        username: username,
+                        password: password
+                    }),
+                    success: function(response) {
+                        console.log("Login success:", response);
+                        showToast('Вход выполнен успешно!');
+                        setTimeout(() => window.location.href = response.redirect, 1000);
+                    },
+                    error: function(xhr) {
+                        console.error("Login error:", xhr.responseJSON);
+                        const error = xhr.responseJSON?.error || 'Ошибка при входе';
+                        showToast(error, true);
+                        buttonText.show();
+                        loadingSpinner.hide();
+                        button.prop('disabled', false);
+                    }
+                });
+            });
+
+            // Add input animation
+            $('.form-group input').on('focus blur', function(e) {
+                $(this).parent().toggleClass('focused', e.type === 'focus');
+            });
+        });
+    </script>
+</body>
+</html>
